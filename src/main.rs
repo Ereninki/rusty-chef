@@ -54,6 +54,10 @@ fn main() -> Result<(), io::Error> {
     let mut category_status = ListState::default();
     let mut screen = Screen::Category_screen;
     recipes_status.select(Some(0));
+    category_status.select(Some(0));
+    let mut current_category = categorys[category_status.selected().unwrap_or(0)];
+    let mut is_category_main = true;
+    let mut is_category_dessert = false;
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -222,10 +226,36 @@ fn main() -> Result<(), io::Error> {
                             }
                         }
                         KeyCode::Enter => {
-                            screen = Screen::Detail;
+                            if screen == Screen::Category_screen {
+                                current_category =
+                                    categorys[category_status.selected().unwrap_or(0)];
+                                if current_category == "Main" {
+                                    if is_category_main == false {
+                                        is_category_main = true;
+                                    }
+                                    if is_category_dessert == true {
+                                        is_category_dessert = false;
+                                    }
+                                } else if current_category == "Dessert" {
+                                    if is_category_main == true {
+                                        is_category_main = false;
+                                    }
+                                    if is_category_dessert == false {
+                                        is_category_dessert = true;
+                                    }
+                                }
+                                screen = Screen::Menu;
+                            } else {
+                                screen = Screen::Detail;
+                            }
                         }
                         KeyCode::Backspace => {
-                            screen = Screen::Menu;
+                            if screen == Screen::Category_screen {
+                            } else if screen == Screen::Menu {
+                                screen = Screen::Category_screen;
+                            } else if screen == Screen::Detail {
+                                screen = Screen::Menu
+                            }
                         }
 
                         _ => {}
