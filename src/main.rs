@@ -83,6 +83,13 @@ fn main() -> Result<(), io::Error> {
 
                 let items: Vec<ListItem> = recipes
                     .iter()
+                    .filter(|r| {
+                        if is_category_main {
+                            r.food_category == Category::Main
+                        } else {
+                            r.food_category == Category::Dessert
+                        }
+                    })
                     .map(|recipe| ListItem::new(recipe.name))
                     .collect();
 
