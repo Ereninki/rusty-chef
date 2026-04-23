@@ -1,4 +1,6 @@
-use std::{io, vec};
+// Only me and god knows how this code still running
+
+use std::{io, iter::successors, vec};
 
 use crossterm::{
     event::{self, Event, KeyCode},
@@ -9,18 +11,27 @@ use ratatui::{
     Terminal,
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
-
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Screen {
     Menu,
     Detail,
+    Category_screen,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Category {
+    Main,
+    Dessert,
 }
 
 struct Recipe {
     name: &'static str,
     description: &'static str,
+    emoji: &'static str,
+    food_category: Category,
 }
 
 fn main() -> Result<(), io::Error> {
@@ -28,14 +39,20 @@ fn main() -> Result<(), io::Error> {
         Recipe {
             name: "Pizza",
             description: "just a dough",
+            emoji: "",
+            food_category: Category::Main,
         },
         Recipe {
             name: "Ratatouille",
             description: "idunno either",
+            emoji: "🥘",
+            food_category: Category::Main,
         },
     ];
+    let categorys = vec!["Main", "Dessert"];
     let mut recipes_status = ListState::default();
-    let mut screen = Screen::Menu;
+    let mut category_status = ListState::default();
+    let mut screen = Screen::Category_screen;
     recipes_status.select(Some(0));
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -55,7 +72,7 @@ fn main() -> Result<(), io::Error> {
                     ])
                     .split(f.area());
 
-                let baslik = Paragraph::new("🦀 WELCOME CHEF 🦀")
+                let welcome = Paragraph::new("🦀 WELCOME TO THE RUSTY CHEF!!! 🦀")
                     .alignment(Alignment::Center)
                     .style(Style::default().fg(Color::Red))
                     .block(Block::default().borders(Borders::ALL));
@@ -76,7 +93,7 @@ fn main() -> Result<(), io::Error> {
                         ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
                     );
 
-                f.render_widget(baslik, chunks[0]);
+                f.render_widget(welcome, chunks[0]);
                 f.render_stateful_widget(list_widget, chunks[2], &mut recipes_status)
             }
             Screen::Detail => {
@@ -97,12 +114,47 @@ fn main() -> Result<(), io::Error> {
                             .borders(Borders::ALL),
                     )
                     .style(Style::default().add_modifier(Modifier::BOLD | Modifier::ITALIC));
-                let welcome_recipe = Paragraph::new("FOOD RECPIE")
-                    .alignment(Alignment::Center)
-                    .block(Block::default().borders(Borders::ALL));
+                let welcome_recipe =
+                    Paragraph::new(format!("FOOD RECIPE {}", recipes[selected].emoji))
+                        .alignment(Alignment::Center)
+                        .style(Style::default().fg(Color::Yellow))
+                        .block(Block::default().borders(Borders::ALL));
 
                 f.render_widget(welcome_recipe, chunks[0]);
                 f.render_widget(food_recipe, chunks[2]);
+            }
+            Screen::Category_screen => {
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Length((3)),
+                        Constraint::Length((1)),
+                        Constraint::Min((10)),
+                    ])
+                    .split(f.area());
+
+                let category_welcome = Paragraph::new("FOOD CATEGORYS")
+                    .alignment(Alignment::Center)
+                    .style(Style::default().fg(Color::Magenta))
+                    .block(Block::default().borders(Borders::ALL));
+
+                let category_name: Vec<ListItem> = categorys
+                    .iter()
+                    .map(|category| ListItem::new(*category))
+                    .collect();
+                let list_category_widget = List::new(category_name)
+                    .block(
+                        Block::default()
+                            .title("Select a category pls")
+                            .borders(Borders::ALL),
+                    )
+                    .highlight_symbol(">> ")
+                    .highlight_style(
+                        ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                    );
+
+                f.render_widget(category_welcome, chunks[0]);
+                f.render_stateful_widget(list_category_widget, chunks[2], &mut category_status);
             }
         })?;
 
@@ -110,34 +162,64 @@ fn main() -> Result<(), io::Error> {
             if let Event::Key(key) = event::read()? {
                 if key.kind == event::KeyEventKind::Press {
                     match key.code {
-                        KeyCode::Char('q') => {
+                        KeyCode::Char('q') | KeyCode::Char('Q') => {
                             break;
                         }
                         KeyCode::Down => {
-                            let i = match recipes_status.selected() {
-                                Some(i) => {
-                                    if i >= recipes.len() - 1 {
-                                        0
-                                    } else {
-                                        i + 1
+                            if screen == Screen::Menu {
+                                let i = match recipes_status.selected() {
+                                    Some(i) => {
+                                        if i >= recipes.len() - 1 {
+                                            0
+                                        } else {
+                                            i + 1
+                                        }
                                     }
-                                }
-                                None => 0,
-                            };
-                            recipes_status.select(Some(i));
+                                    None => 0,
+                                };
+                                recipes_status.select(Some(i));
+                            }
+                            if screen == Screen::Category_screen {
+                                let i = match category_status.selected() {
+                                    Some(i) => {
+                                        if i >= categorys.len() - 1 {
+                                            0
+                                        } else {
+                                            i + 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                category_status.select(Some(i));
+                            }
                         }
                         KeyCode::Up => {
-                            let i = match recipes_status.selected() {
-                                Some(i) => {
-                                    if i == 0 {
-                                        recipes.len() - 1
-                                    } else {
-                                        i - 1
+                            if screen == Screen::Menu {
+                                let i = match recipes_status.selected() {
+                                    Some(i) => {
+                                        if i == 0 {
+                                            recipes.len() - 1
+                                        } else {
+                                            i - 1
+                                        }
                                     }
-                                }
-                                None => 0,
-                            };
-                            recipes_status.select(Some(i));
+                                    None => 0,
+                                };
+                                recipes_status.select(Some(i));
+                            }
+                            if screen == Screen::Category_screen {
+                                let i = match category_status.selected() {
+                                    Some(i) => {
+                                        if i == 0 {
+                                            categorys.len() - 1
+                                        } else {
+                                            i - 1
+                                        }
+                                    }
+                                    None => 0,
+                                };
+                                category_status.select(Some(i));
+                            }
                         }
                         KeyCode::Enter => {
                             screen = Screen::Detail;
